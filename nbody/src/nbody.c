@@ -489,6 +489,39 @@ int nbMain(const NBodyFlags* nbf)
         st->useDist = ctx->useDist;
         st->usePropMot = ctx->usePropMot;
 
+        /* Save the starting particles once, before any forward evolution. */
+        if (i == 0 && st->step == 0 && nbf->histoutFileName && nbf->histoutFileName[0])
+        {
+            HistogramParams hp;
+            NBodyLikelihoodMethod method;
+            MainStruct* histogram;
+            char* initialHistogramFile;
+
+            if (nbGetLikelihoodInfo(nbf, &hp, &method) || method == NBODY_INVALID_METHOD)
+            {
+                mw_printf("Failed to get initial histogram parameters\n");
+                destroyNBodyState(st);
+                return NBODY_LIKELIHOOD_ERROR;
+            }
+
+            histogram = nbCreateHistogram(ctx, st, &hp);
+            if (!histogram)
+            {
+                mw_printf("Failed to create initial histogram\n");
+                destroyNBodyState(st);
+                return NBODY_LIKELIHOOD_ERROR;
+            }
+
+            initialHistogramFile = mwCalloc(strlen(nbf->histoutFileName) + sizeof(".initial"), sizeof(char));
+            strcpy(initialHistogramFile, nbf->histoutFileName);
+            strcat(initialHistogramFile, ".initial");
+            nbWriteHistogram(initialHistogramFile, ctx, st, histogram);
+            free(initialHistogramFile);
+            for (unsigned int j = 0; j < 8; ++j)
+                free(histogram->histograms[j]);
+            free(histogram);
+        }
+
         //save the state if about to start first calibration run
         if(ctx->calibrationRuns > 0 && i == 0){
             cloneNBodyState(&initialState, st);
